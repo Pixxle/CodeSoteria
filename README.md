@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.jpeg" alt="CodeAtlas" width="700">
+</p>
+
 # CodeSoteria
 
 Automated security audits for codebases, powered by [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview).
