@@ -1,0 +1,10 @@
+{
+  "name": "codesoteria-security-audit",
+  "version": "1.0.0",
+  "description": "Automated security audit skill that orchestrates parallel analysis agents for SAST, dependency scanning, secret detection, configuration review, and LLM-based security analysis",
+  "author": {
+    "name": "CodeSoteria"
+  },
+  "keywords": ["security", "audit", "sast", "vulnerability", "dependency", "secrets", "compliance"],
+  "commands": "../.claude/commands/"
+}

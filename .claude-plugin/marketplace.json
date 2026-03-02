@@ -1,0 +1,21 @@
+{
+  "name": "codesoteria-marketplace",
+  "owner": {
+    "name": "CodeSoteria"
+  },
+  "metadata": {
+    "description": "Automated security audit for codebases using parallel specialized agents",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "codesoteria-security-audit",
+      "source": "./",
+      "description": "Run /codesoteria:scan <path> to perform a comprehensive security audit",
+      "version": "1.0.0",
+      "keywords": ["security", "audit", "sast", "vulnerability"],
+      "category": "security",
+      "commands": "../.claude/commands/"
+    }
+  ]
+}

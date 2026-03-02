@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod:*)",
+      "Bash(mkdir:*)",
+      "Bash(command -v:*)",
+      "Bash(semgrep:*)",
+      "Bash(bandit:*)",
+      "Bash(gosec:*)",
+      "Bash(flawfinder:*)",
+      "Bash(eslint:*)",
+      "Bash(npx eslint:*)",
+      "Bash(osv-scanner:*)",
+      "Bash(grype:*)",
+      "Bash(syft:*)",
+      "Bash(trivy:*)",
+      "Bash(npm audit:*)",
+      "Bash(pip-audit:*)",
+      "Bash(cargo audit:*)",
+      "Bash(gitleaks:*)",
+      "Bash(trufflehog:*)",
+      "Bash(detect-secrets:*)",
+      "Bash(checkov:*)",
+      "Bash(hadolint:*)",
+      "Bash(kube-linter:*)",
+      "Bash(dockle:*)",
+      "Bash(bearer:*)"
+    ]
+  }
+}
