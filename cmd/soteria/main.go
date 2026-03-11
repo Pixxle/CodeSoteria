@@ -124,12 +124,16 @@ func scanCmd() *cobra.Command {
 			// Set up output directory
 			outputDir := filepath.Join("codesoteria-output", repo.Name)
 
-			// Choose LLM client
+			// Choose LLM client — CLI flag overrides config
 			var llm agents.LLMClient
 			if toolsOnly {
 				llm = &agents.NoOpLLMClient{}
 			} else {
-				llm = agents.NewClaudeCodeClient(llmModel)
+				model := llmModel
+				if model == "" {
+					model = cfg.Scanner.LLMModel
+				}
+				llm = agents.NewClaudeCodeClient(model)
 			}
 
 			// Build and run pipeline

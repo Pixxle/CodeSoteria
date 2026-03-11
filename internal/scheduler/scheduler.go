@@ -170,7 +170,7 @@ func (s *Scheduler) runScan(ctx context.Context, repoName, scanType string, gene
 		}
 
 		outputDir := filepath.Join("codesoteria-output", repo.Name)
-		llm := agents.NewClaudeCodeClient("")
+		llm := agents.NewClaudeCodeClient(s.cfg.Scanner.LLMModel)
 		pipeline := agents.NewPipeline(outputDir, llm, s.cfg.Scanner.ParallelAgents)
 
 		pipelineResult, err := pipeline.Run(scanCtx, targetPath, agents.AgentNames())

@@ -42,6 +42,7 @@ type ScannerConfig struct {
 	GitHistoryScan bool   `yaml:"git_history_scan"`
 	ParallelAgents int    `yaml:"parallel_agents"`
 	CloneDir       string `yaml:"clone_dir"`
+	LLMModel       string `yaml:"llm_model"`
 }
 
 func Load(path string) (*Config, error) {
