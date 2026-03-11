@@ -129,7 +129,7 @@ func scanCmd() *cobra.Command {
 			if toolsOnly {
 				llm = &agents.NoOpLLMClient{}
 			} else {
-				llm = agents.NewAnthropicClient("", llmModel)
+				llm = agents.NewClaudeCodeClient(llmModel)
 			}
 
 			// Build and run pipeline
@@ -189,7 +189,7 @@ func scanCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&scanType, "type", "t", "full", "Scan type: quick or full")
 	cmd.Flags().BoolVarP(&report, "report", "r", false, "Generate report files")
 	cmd.Flags().BoolVar(&toolsOnly, "tools-only", false, "Run only external tools without LLM enrichment")
-	cmd.Flags().StringVar(&llmModel, "model", "", "LLM model to use (default: claude-sonnet-4-20250514)")
+	cmd.Flags().StringVar(&llmModel, "model", "", "Claude model to use (passed to claude CLI --model flag)")
 	return cmd
 }
 

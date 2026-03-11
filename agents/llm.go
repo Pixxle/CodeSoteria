@@ -1,12 +1,11 @@
 package agents
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
+	"log"
 	"os"
+	"os/exec"
+	"strings"
 )
 
 // LLMClient defines the interface for calling an LLM to process agent prompts.
@@ -15,85 +14,53 @@ type LLMClient interface {
 	Complete(systemPrompt, userPrompt string) (string, error)
 }
 
-// AnthropicClient calls the Anthropic Messages API.
-type AnthropicClient struct {
-	APIKey string
-	Model  string
-	client *http.Client
+// ClaudeCodeClient invokes the `claude` CLI for LLM completions.
+type ClaudeCodeClient struct {
+	Model string // optional model override (e.g. "claude-sonnet-4-20250514")
 }
 
-// NewAnthropicClient creates a client for the Anthropic API.
-// API key is read from ANTHROPIC_API_KEY env var if not provided.
-func NewAnthropicClient(apiKey, model string) *AnthropicClient {
-	if apiKey == "" {
-		apiKey = os.Getenv("ANTHROPIC_API_KEY")
-	}
-	if model == "" {
-		model = "claude-sonnet-4-20250514"
-	}
-	return &AnthropicClient{
-		APIKey: apiKey,
-		Model:  model,
-		client: &http.Client{},
-	}
+// NewClaudeCodeClient creates a client that shells out to the claude CLI.
+func NewClaudeCodeClient(model string) *ClaudeCodeClient {
+	return &ClaudeCodeClient{Model: model}
 }
 
-func (c *AnthropicClient) Complete(systemPrompt, userPrompt string) (string, error) {
-	if c.APIKey == "" {
-		return "", fmt.Errorf("ANTHROPIC_API_KEY not set")
+func (c *ClaudeCodeClient) Complete(systemPrompt, userPrompt string) (string, error) {
+	// Build the combined prompt — system prompt as context, user prompt as the task
+	fullPrompt := systemPrompt + "\n\n" + userPrompt
+
+	args := []string{
+		"--print",   // non-interactive, print response and exit
+		"--dangerously-skip-permissions", // no permission prompts in automated mode
 	}
 
-	body := map[string]any{
-		"model":      c.Model,
-		"max_tokens": 8192,
-		"system":     systemPrompt,
-		"messages": []map[string]string{
-			{"role": "user", "content": userPrompt},
-		},
+	if c.Model != "" {
+		args = append(args, "--model", c.Model)
 	}
 
-	jsonBody, err := json.Marshal(body)
+	// Pass the prompt via stdin using --prompt flag with "-" for stdin
+	args = append(args, "--prompt", "-")
+
+	cmd := exec.Command("claude", args...)
+	cmd.Stdin = strings.NewReader(fullPrompt)
+	cmd.Stderr = os.Stderr
+
+	log.Printf("[LLM] Invoking claude CLI (model=%s, prompt=%d bytes)", c.Model, len(fullPrompt))
+
+	out, err := cmd.Output()
 	if err != nil {
-		return "", err
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return "", fmt.Errorf("claude CLI exited %d: %s", exitErr.ExitCode(), string(exitErr.Stderr))
+		}
+		return "", fmt.Errorf("claude CLI: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(jsonBody))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", c.APIKey)
-	req.Header.Set("anthropic-version", "2023-06-01")
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("anthropic API: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
+	response := strings.TrimSpace(string(out))
+	if response == "" {
+		return "", fmt.Errorf("empty response from claude CLI")
 	}
 
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("anthropic API %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	var result struct {
-		Content []struct {
-			Text string `json:"text"`
-		} `json:"content"`
-	}
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return "", fmt.Errorf("parse response: %w", err)
-	}
-
-	if len(result.Content) == 0 {
-		return "", fmt.Errorf("empty response from Anthropic API")
-	}
-
-	return result.Content[0].Text, nil
+	log.Printf("[LLM] Response received (%d bytes)", len(response))
+	return response, nil
 }
 
 // NoOpLLMClient is a placeholder that returns empty findings (for tool-only mode).
