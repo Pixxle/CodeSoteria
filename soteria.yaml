@@ -1,0 +1,32 @@
+# CodeSoteria Configuration
+database:
+  driver: sqlite3
+  dsn: "soteria.db"
+
+repositories:
+  # - name: "my-app"
+  #   url: "https://github.com/org/my-app.git"
+  #   branch: "main"
+  #   schedule: "0 2 * * 1"        # cron: weekly Monday 2am
+  #   scan_type: "full"            # quick | full
+  #   report: true
+
+jira:
+  enabled: false
+  url: "https://company.atlassian.net"
+  project: "SEC"
+  issue_type: "Bug"
+  email: "${JIRA_EMAIL}"
+  token: "${JIRA_API_TOKEN}"
+  auto_create_threshold: "HIGH"   # Create tickets for findings >= this severity
+  priority_mapping:
+    P0: "Highest"
+    P1: "High"
+    P2: "Medium"
+    P3: "Low"
+
+scanner:
+  git_history_scan: true
+  parallel_agents: 4
+  clone_dir: "/tmp/soteria-repos"
+  llm_model: "sonnet"  # opus | sonnet | haiku

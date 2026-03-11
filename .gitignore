@@ -13,3 +13,12 @@ venv/
 
 # Audit output (generated at runtime)
 codesoteria-output/
+
+# Go binary
+/soteria
+*.db
+*.db-wal
+*.db-shm
+
+# Plan file
+plan.md
