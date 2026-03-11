@@ -29,3 +29,4 @@ scanner:
   git_history_scan: true
   parallel_agents: 4
   clone_dir: "/tmp/soteria-repos"
+  llm_model: "claude-sonnet-4-20250514"  # LLM model for agent enrichment

@@ -3,11 +3,13 @@ package scheduler
 import (
 	"context"
 	"log"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/robfig/cron/v3"
 
+	"github.com/CodeSoteria/soteria/agents"
 	"github.com/CodeSoteria/soteria/internal/config"
 	"github.com/CodeSoteria/soteria/internal/db"
 	"github.com/CodeSoteria/soteria/internal/jira"
@@ -22,7 +24,7 @@ type Scheduler struct {
 	jira    *jira.Client
 	cfg     *config.Config
 	mu      sync.Mutex
-	entries map[string]cron.EntryID // repo name -> entry ID
+	entries map[string]cron.EntryID
 }
 
 // New creates a new Scheduler.
@@ -39,7 +41,6 @@ func New(s *scanner.Scanner, database *db.DB, jiraClient *jira.Client, cfg *conf
 
 // Start initializes schedules from config and starts the cron scheduler.
 func (s *Scheduler) Start(ctx context.Context) error {
-	// Load repos from config
 	for _, rc := range s.cfg.Repositories {
 		if rc.Schedule == "" {
 			continue
@@ -51,7 +52,6 @@ func (s *Scheduler) Start(ctx context.Context) error {
 			continue
 		}
 		if repo == nil {
-			// Auto-register from config
 			repo = &db.Repository{
 				Name:          rc.Name,
 				URL:           rc.URL,
@@ -72,7 +72,6 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		}
 	}
 
-	// Also load repos from DB that aren't in config
 	repos, err := s.db.ListRepositories()
 	if err != nil {
 		return err
@@ -105,7 +104,6 @@ func (s *Scheduler) AddRepo(ctx context.Context, repo *db.Repository) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Remove existing if present
 	if eid, exists := s.entries[repo.Name]; exists {
 		s.cron.Remove(eid)
 	}
@@ -149,21 +147,66 @@ func (s *Scheduler) runScan(ctx context.Context, repoName, scanType string, gene
 	scanCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 
-	var result *scanner.ScanResult
-	switch scanType {
-	case scanner.ScanTypeQuick:
-		result, err = s.scanner.RunQuick(scanCtx, repo)
-	default:
-		result, err = s.scanner.RunFull(scanCtx, repo, generateReport)
-	}
+	if scanType == scanner.ScanTypeQuick {
+		result, err := s.scanner.RunQuick(scanCtx, repo)
+		if err != nil {
+			log.Printf("Scan failed for %s: %v", repoName, err)
+			return
+		}
+		log.Printf("Quick scan completed for %s: %d open, %d mitigated",
+			repoName, result.OpenCount, result.MitigatedCount)
+	} else {
+		// Full scan via pipeline
+		targetPath, err := s.scanner.PrepareRepo(repo)
+		if err != nil {
+			log.Printf("Prepare repo failed for %s: %v", repoName, err)
+			return
+		}
 
-	if err != nil {
-		log.Printf("Scan failed for %s: %v", repoName, err)
-		return
-	}
+		scan, err := s.scanner.CreateScanRecord(repo, scanner.ScanTypeFull)
+		if err != nil {
+			log.Printf("Create scan record failed for %s: %v", repoName, err)
+			return
+		}
 
-	log.Printf("Scan completed for %s: %d findings, %d new, %d mitigated",
-		repoName, len(result.Findings), result.NewCount, result.MitigatedCount)
+		outputDir := filepath.Join("codesoteria-output", repo.Name)
+		llm := agents.NewAnthropicClient("", "")
+		pipeline := agents.NewPipeline(outputDir, llm, s.cfg.Scanner.ParallelAgents)
+
+		pipelineResult, err := pipeline.Run(scanCtx, targetPath, agents.AgentNames())
+		if err != nil {
+			s.scanner.FailScan(scan.ID, err.Error())
+			log.Printf("Pipeline failed for %s: %v", repoName, err)
+			return
+		}
+
+		newCount, openCount, mitigatedCount, err := s.scanner.PersistFindings(repo.ID, scan.ID, pipelineResult.Consolidated)
+		if err != nil {
+			s.scanner.FailScan(scan.ID, err.Error())
+			log.Printf("Persist findings failed for %s: %v", repoName, err)
+			return
+		}
+
+		s.scanner.CompleteScan(scan.ID, newCount, openCount, mitigatedCount)
+
+		if generateReport {
+			result := &scanner.ScanResult{
+				RepoName:       repo.Name,
+				CommitHash:     scan.CommitHash,
+				ScanType:       scanner.ScanTypeFull,
+				Findings:       pipelineResult.Consolidated,
+				NewCount:       newCount,
+				OpenCount:      openCount,
+				MitigatedCount: mitigatedCount,
+			}
+			if err := s.scanner.GenerateReport(repo, result); err != nil {
+				log.Printf("Report generation error for %s: %v", repoName, err)
+			}
+		}
+
+		log.Printf("Full scan completed for %s: %d findings, %d new, %d mitigated",
+			repoName, len(pipelineResult.Consolidated), newCount, mitigatedCount)
+	}
 
 	// Sync to Jira if enabled
 	if s.jira != nil && s.cfg.Jira.Enabled {

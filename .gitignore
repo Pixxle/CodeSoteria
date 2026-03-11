@@ -14,8 +14,8 @@ venv/
 # Audit output (generated at runtime)
 codesoteria-output/
 
-# Go
-soteria
+# Go binary
+/soteria
 *.db
 *.db-wal
 *.db-shm
