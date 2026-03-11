@@ -14,13 +14,25 @@ type LLMClient interface {
 	Complete(systemPrompt, userPrompt string) (string, error)
 }
 
+// Valid model shorthand names.
+var validModels = map[string]bool{
+	"opus":   true,
+	"sonnet": true,
+	"haiku":  true,
+}
+
 // ClaudeCodeClient invokes the `claude` CLI for LLM completions.
 type ClaudeCodeClient struct {
-	Model string // optional model override (e.g. "claude-sonnet-4-20250514")
+	Model string // shorthand: "opus", "sonnet", or "haiku"
 }
 
 // NewClaudeCodeClient creates a client that shells out to the claude CLI.
+// Model must be "opus", "sonnet", or "haiku". Defaults to "sonnet" if empty or invalid.
 func NewClaudeCodeClient(model string) *ClaudeCodeClient {
+	model = strings.ToLower(strings.TrimSpace(model))
+	if !validModels[model] {
+		model = "sonnet"
+	}
 	return &ClaudeCodeClient{Model: model}
 }
 
